@@ -110,9 +110,9 @@ class ALPR:
         if assume_cropped:
             text, proc = self._read_processed(img_bgr)
             h, w = img_bgr.shape[:2]
-            return [{"box": (0, 0, w, h), "text": text, "proc": proc}]
+            return [{"box": (0, 0, w, h), "text": text, "crop": img_bgr, "proc": proc}]
         results = []
         for xyxy, crop in self.detect_boxes(img_bgr):
             text, proc = self._read_processed(crop)
-            results.append({"box": xyxy, "text": text, "proc": proc})
+            results.append({"box": xyxy, "text": text, "crop": crop, "proc": proc})
         return results

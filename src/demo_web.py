@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import cv2
+import numpy as np
 import gradio as gr
 
 SRC = Path(__file__).resolve().parent
@@ -33,14 +34,29 @@ def fmt_vn(s):
     return s
 
 
+def _before_after(crop_bgr, sr_bgr):
+    """Ghep [Truoc SR | Sau SR] cung chieu cao de thay SR lam net."""
+    H = 160
+    def fit(im):
+        return cv2.resize(im, (max(1, int(im.shape[1] * H / im.shape[0])), H),
+                          interpolation=cv2.INTER_NEAREST)
+    a, b = fit(crop_bgr), fit(sr_bgr)
+    gap = np.full((H, 10, 3), 255, np.uint8)
+    panel = np.hstack([a, gap, b])
+    panel = cv2.copyMakeBorder(panel, 26, 6, 6, 6, cv2.BORDER_CONSTANT, value=(255, 255, 255))
+    cv2.putText(panel, "Truoc SR", (6, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 200), 1)
+    cv2.putText(panel, "Sau SR", (a.shape[1] + 22, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 150, 0), 1)
+    return cv2.cvtColor(panel, cv2.COLOR_BGR2RGB)
+
+
 def run(image_rgb, skip_detect):
     if image_rgb is None:
-        return "Chua co anh", None, ""
+        return "Chua co anh", None, [], ""
     img = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
     results = alpr.predict_all(img, assume_cropped=skip_detect)
     if not results:
         return ("Khong detect duoc bien (neu anh da la crop bien san, tich o ben trai)",
-                image_rgb, "")
+                image_rgb, [], "")
 
     # ve khung + bien len anh
     vis = img.copy()
@@ -54,6 +70,12 @@ def run(image_rgb, skip_detect):
                     cv2.FONT_HERSHEY_SIMPLEX, fs, (0, 200, 0), th)
     vis_rgb = cv2.cvtColor(vis, cv2.COLOR_BGR2RGB)
 
+    # gallery truoc/sau SR cho tung bien
+    gallery = []
+    for i, r in enumerate(results, 1):
+        cap = f"Bien {i}: {r['text']}" if r["text"] else f"Bien {i}: (khong doc duoc)"
+        gallery.append((_before_after(r["crop"], r["proc"]), cap))
+
     reads = [r["text"] for r in results if r["text"]]
     if len(results) == 1:
         t = results[0]["text"]
@@ -64,7 +86,7 @@ def run(image_rgb, skip_detect):
     for i, r in enumerate(results, 1):
         t = r["text"]
         lines.append(f"Bien {i}: {t + '  (' + fmt_vn(t) + ')' if t else '(khong doc duoc)'}")
-    return label, vis_rgb, "\n".join(lines)
+    return label, vis_rgb, gallery, "\n".join(lines)
 
 
 examples = [[str(p)] for p in sorted((PKG / "samples").glob("*"))
@@ -83,8 +105,10 @@ with gr.Blocks(title="ALPR bien so VN - SR + YOLOv5 OCR") as demo:
         with gr.Column():
             out_text = gr.Label(label="Ket qua")
             out_img = gr.Image(label="Anh ket qua (khung + bien so)")
+            out_gallery = gr.Gallery(label="Tung bien: Truoc SR vs Sau SR",
+                                     columns=2, height="auto")
             out_note = gr.Textbox(label="Danh sach bien", lines=4)
-    btn.click(run, inputs=[inp, skip], outputs=[out_text, out_img, out_note])
+    btn.click(run, inputs=[inp, skip], outputs=[out_text, out_img, out_gallery, out_note])
     if examples:
         gr.Examples(examples=examples, inputs=inp)
 
