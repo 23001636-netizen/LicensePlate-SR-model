@@ -14,7 +14,7 @@ import gradio as gr
 SRC = Path(__file__).resolve().parent
 PKG = SRC.parent
 sys.path.insert(0, str(SRC))
-from alpr import ALPR, DEVICE   # noqa: E402
+from alpr import ALPR, super_resolve, DEVICE   # noqa: E402
 
 EXTS = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
 
@@ -49,14 +49,32 @@ def _before_after(crop_bgr, sr_bgr):
     return cv2.cvtColor(panel, cv2.COLOR_BGR2RGB)
 
 
-def run(image_rgb, skip_detect):
+def run(image_rgb, skip_detect, demo_blur):
     if image_rgb is None:
         return "Chua co anh", None, [], ""
     img = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
-    results = alpr.predict_all(img, assume_cropped=skip_detect)
-    if not results:
-        return ("Khong detect duoc bien (neu anh da la crop bien san, tich o ben trai)",
-                image_rgb, [], "")
+
+    # Lay danh sach (box, crop)
+    if skip_detect:
+        h0, w0 = img.shape[:2]
+        plates = [((0, 0, w0, h0), img)]
+    else:
+        plates = alpr.detect_boxes(img)
+        if not plates:
+            return ("Khong detect duoc bien (neu anh da la crop bien san, tich o ben trai)",
+                    image_rgb, [], "")
+
+    results = []
+    for box, crop in plates:
+        src = crop
+        if demo_blur:
+            # gia lap anh do phan giai thap: thu nho 1/4 (mo phong chup xa)
+            ch, cw = crop.shape[:2]
+            src = cv2.resize(crop, (max(1, cw // 4), max(1, ch // 4)),
+                             interpolation=cv2.INTER_AREA)
+        proc = super_resolve(alpr.sr, src, DEVICE) if alpr.use_sr else src
+        text = alpr.read_crop(proc)
+        results.append({"box": box, "text": text, "crop": src, "proc": proc})
 
     # ve khung + bien len anh
     vis = img.copy()
@@ -105,6 +123,12 @@ with gr.Blocks(title="ALPR bien so VN - SR + YOLOv5 OCR") as demo:
                 ":warning: **Anh chup ca xe / khung canh thi DUNG tich o tren.** "
                 "Chi tich khi anh da cat sat bien. Tich nham voi anh chua crop se "
                 "khien demo doc sai hoac khong doc duoc.")
+            blur = gr.Checkbox(
+                label="Gia lap anh mo (de thay ro tac dung cua SR)", value=False)
+            gr.Markdown(
+                "_SR chi lam net anh **mo / do phan giai thap**. Voi anh von da net "
+                "thi truoc/sau SR trong gan giong nhau (dung). Tich o tren de thu nho "
+                "anh roi xem SR phuc hoi._")
             btn = gr.Button("Doc bien so", variant="primary")
         with gr.Column():
             out_text = gr.Label(label="Ket qua")
@@ -112,7 +136,7 @@ with gr.Blocks(title="ALPR bien so VN - SR + YOLOv5 OCR") as demo:
             out_gallery = gr.Gallery(label="Tung bien: Truoc SR vs Sau SR",
                                      columns=2, height="auto")
             out_note = gr.Textbox(label="Danh sach bien", lines=4)
-    btn.click(run, inputs=[inp, skip], outputs=[out_text, out_img, out_gallery, out_note])
+    btn.click(run, inputs=[inp, skip, blur], outputs=[out_text, out_img, out_gallery, out_note])
     if examples:
         gr.Examples(examples=examples, inputs=inp)
 

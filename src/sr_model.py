@@ -21,8 +21,19 @@ def load_sr_model(ckpt_path, device, scale=4):
 
 
 @torch.no_grad()
-def super_resolve(model, img_bgr, device):
-    """Chay SR tren 1 anh BGR (uint8) -> anh BGR (uint8) da phong to x4."""
+def super_resolve(model, img_bgr, device, max_side=256):
+    """Chay SR tren 1 anh BGR (uint8) -> anh BGR (uint8) da phong to x4.
+
+    max_side: gioi han canh dai dau vao (px). Crop qua to (da net) duoc thu nho
+    truoc khi SR -> nhanh hon nhieu tren CPU, chat luong doc gan nhu khong doi.
+    Dat None de tat gioi han.
+    """
+    h, w = img_bgr.shape[:2]
+    m = max(h, w)
+    if max_side and m > max_side:
+        s = max_side / m
+        img_bgr = cv2.resize(img_bgr, (max(1, int(w * s)), max(1, int(h * s))),
+                             interpolation=cv2.INTER_AREA)
     rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
     t = torch.from_numpy(rgb).permute(2, 0, 1).unsqueeze(0).to(device)
     out = model(t).clamp(0, 1)
