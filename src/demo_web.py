@@ -49,7 +49,7 @@ def _before_after(crop_bgr, sr_bgr):
     return cv2.cvtColor(panel, cv2.COLOR_BGR2RGB)
 
 
-def run(image_rgb, skip_detect, demo_blur):
+def run(image_rgb, skip_detect, demo_blur, no_sr):
     if image_rgb is None:
         return "Chua co anh", None, [], ""
     img = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
@@ -72,7 +72,7 @@ def run(image_rgb, skip_detect, demo_blur):
             ch, cw = crop.shape[:2]
             src = cv2.resize(crop, (max(1, cw // 4), max(1, ch // 4)),
                              interpolation=cv2.INTER_AREA)
-        proc = super_resolve(alpr.sr, src, DEVICE) if alpr.use_sr else src
+        proc = src if no_sr else super_resolve(alpr.sr, src, DEVICE)
         text = alpr.read_crop(proc)
         results.append({"box": box, "text": text, "crop": src, "proc": proc})
 
@@ -123,6 +123,8 @@ with gr.Blocks(title="ALPR bien so VN - SR + YOLOv5 OCR") as demo:
                 ":warning: **Anh chup ca xe / khung canh thi DUNG tich o tren.** "
                 "Chi tich khi anh da cat sat bien. Tich nham voi anh chua crop se "
                 "khien demo doc sai hoac khong doc duoc.")
+            nosr = gr.Checkbox(
+                label="Tat SR (doc thang - nhanh hon, giam tai)", value=False)
             blur = gr.Checkbox(
                 label="Gia lap anh mo (de thay ro tac dung cua SR)", value=False)
             gr.Markdown(
@@ -136,7 +138,8 @@ with gr.Blocks(title="ALPR bien so VN - SR + YOLOv5 OCR") as demo:
             out_gallery = gr.Gallery(label="Tung bien: Truoc SR vs Sau SR",
                                      columns=2, height="auto")
             out_note = gr.Textbox(label="Danh sach bien", lines=4)
-    btn.click(run, inputs=[inp, skip, blur], outputs=[out_text, out_img, out_gallery, out_note])
+    btn.click(run, inputs=[inp, skip, blur, nosr],
+              outputs=[out_text, out_img, out_gallery, out_note])
     if examples:
         gr.Examples(examples=examples, inputs=inp)
 
