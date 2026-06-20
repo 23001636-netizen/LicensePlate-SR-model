@@ -57,13 +57,25 @@ class ALPR:
         self.ocr.conf = ocr_conf
         self.sr = load_sr_model(SR_MODEL, DEVICE, SCALE) if use_sr else None
 
-    def detect_crop(self, img):
+    def detect_boxes(self, img):
+        """Phat hien TAT CA bien -> list (xyxy, crop), sap theo trai->phai roi tren->duoi."""
         res = self.det(img, size=640)
         boxes = res.pandas().xyxy[0].values.tolist()
+        out = []
+        for b in boxes:
+            crop = _clip_crop(img, b[0], b[1], b[2], b[3])
+            if crop is not None:
+                xyxy = (int(b[0]), int(b[1]), int(b[2]), int(b[3]))
+                out.append((xyxy, crop))
+        out.sort(key=lambda t: (t[0][1] // 50, t[0][0]))  # gom theo hang roi trai->phai
+        return out
+
+    def detect_crop(self, img):
+        """(Tuong thich cu) tra ve crop cua bien LON NHAT, hoac None."""
+        boxes = self.detect_boxes(img)
         if not boxes:
             return None
-        b = max(boxes, key=lambda b: (b[2] - b[0]) * (b[3] - b[1]))
-        return _clip_crop(img, b[0], b[1], b[2], b[3])
+        return max(boxes, key=lambda t: (t[0][2] - t[0][0]) * (t[0][3] - t[0][1]))[1]
 
     def read_crop(self, crop):
         for cc in range(2):
@@ -73,16 +85,34 @@ class ALPR:
                     return normalize(cand)
         return ""
 
+    def _read_processed(self, crop):
+        """SR (neu bat) roi doc -> (bien_so, anh_da_xu_ly)."""
+        proc = super_resolve(self.sr, crop, DEVICE) if self.use_sr else crop
+        return self.read_crop(proc), proc
+
     def predict(self, img_bgr, assume_cropped=False):
-        """anh BGR -> (bien_so, crop_da_xu_ly). bien_so='' neu khong doc duoc.
+        """anh BGR -> (bien_so, crop_da_xu_ly) cho 1 bien (lon nhat).
 
         assume_cropped=True: anh dau vao DA la crop bien san -> bo qua buoc detect.
         """
         if assume_cropped:
-            crop = img_bgr
-        else:
-            crop = self.detect_crop(img_bgr)
-            if crop is None:
-                return "", None
-        proc = super_resolve(self.sr, crop, DEVICE) if self.use_sr else crop
-        return self.read_crop(proc), proc
+            return self._read_processed(img_bgr)
+        crop = self.detect_crop(img_bgr)
+        if crop is None:
+            return "", None
+        return self._read_processed(crop)
+
+    def predict_all(self, img_bgr, assume_cropped=False):
+        """anh BGR -> list cac bien tim thay: [{box, text, proc}].
+
+        Ho tro anh CO NHIEU bien so. assume_cropped=True: coi ca anh la 1 crop.
+        """
+        if assume_cropped:
+            text, proc = self._read_processed(img_bgr)
+            h, w = img_bgr.shape[:2]
+            return [{"box": (0, 0, w, h), "text": text, "proc": proc}]
+        results = []
+        for xyxy, crop in self.detect_boxes(img_bgr):
+            text, proc = self._read_processed(crop)
+            results.append({"box": xyxy, "text": text, "proc": proc})
+        return results

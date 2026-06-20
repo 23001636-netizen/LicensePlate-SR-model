@@ -6,6 +6,9 @@ Hệ thống nhận dạng biển số xe tự động (ALPR) có tích hợp **
 **Luồng xử lý:** ảnh → YOLOv5 phát hiện & cắt biển → Real-ESRGAN làm nét (×4) →
 deskew → YOLOv5 đọc ký tự → ghép chuỗi biển số.
 
+> Hỗ trợ ảnh có **nhiều biển số**: hệ thống phát hiện & đọc tất cả biển trong ảnh,
+> vẽ khung + biển số đọc được lên ảnh kết quả.
+
 ---
 
 ## Cách chạy (3 bước)

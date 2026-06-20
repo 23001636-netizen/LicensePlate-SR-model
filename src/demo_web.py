@@ -1,6 +1,6 @@
 """
 Demo web (Gradio): upload anh -> YOLOv5 detect+crop -> SR lam net -> YOLOv5 doc ky tu.
-Hien crop goc vs sau SR + bien doc duoc (co/khong SR) de thay dong gop cua SR.
+Ho tro anh CO NHIEU bien so: ve khung + bien doc duoc len anh, liet ke tat ca.
 
     python src/demo_web.py    -> mo http://127.0.0.1:7860
 """
@@ -13,7 +13,7 @@ import gradio as gr
 SRC = Path(__file__).resolve().parent
 PKG = SRC.parent
 sys.path.insert(0, str(SRC))
-from alpr import ALPR, super_resolve, DEVICE   # noqa: E402
+from alpr import ALPR, DEVICE   # noqa: E402
 
 EXTS = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
 
@@ -35,25 +35,36 @@ def fmt_vn(s):
 
 def run(image_rgb, skip_detect):
     if image_rgb is None:
-        return "Chua co anh", None, None, ""
+        return "Chua co anh", None, ""
     img = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
-    if skip_detect:
-        crop = img
+    results = alpr.predict_all(img, assume_cropped=skip_detect)
+    if not results:
+        return ("Khong detect duoc bien (neu anh da la crop bien san, tich o ben trai)",
+                image_rgb, "")
+
+    # ve khung + bien len anh
+    vis = img.copy()
+    h = img.shape[0]
+    th = max(2, h // 400)
+    fs = max(0.6, h / 1000)
+    for i, r in enumerate(results, 1):
+        x1, y1, x2, y2 = r["box"]
+        cv2.rectangle(vis, (x1, y1), (x2, y2), (0, 200, 0), th)
+        cv2.putText(vis, r["text"] or "?", (x1, max(int(20 * fs), y1 - 6)),
+                    cv2.FONT_HERSHEY_SIMPLEX, fs, (0, 200, 0), th)
+    vis_rgb = cv2.cvtColor(vis, cv2.COLOR_BGR2RGB)
+
+    reads = [r["text"] for r in results if r["text"]]
+    if len(results) == 1:
+        t = results[0]["text"]
+        label = f"OK  {t}   ({fmt_vn(t)})" if t else "Khong doc duoc ky tu"
     else:
-        crop = alpr.detect_crop(img)
-        if crop is None:
-            return ("Khong detect duoc bien (neu anh da la crop bien san, "
-                    "tich o ben trai)"), None, None, ""
-    sr_crop = super_resolve(alpr.sr, crop, DEVICE)
-    text_sr = alpr.read_crop(sr_crop)
-    text_nosr = alpr.read_crop(crop)
-    crop_rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
-    sr_rgb = cv2.cvtColor(sr_crop, cv2.COLOR_BGR2RGB)
-    label = (f"OK  {text_sr}   ({fmt_vn(text_sr)})" if text_sr
-             else "Khong doc duoc ky tu")
-    note = (f"Doc khong SR: {text_nosr or '(khong doc duoc)'}\n"
-            f"Doc CO SR  : {text_sr or '(khong doc duoc)'}")
-    return label, crop_rgb, sr_rgb, note
+        label = f"Tim thay {len(results)} bien so ({len(reads)} doc duoc)"
+    lines = []
+    for i, r in enumerate(results, 1):
+        t = r["text"]
+        lines.append(f"Bien {i}: {t + '  (' + fmt_vn(t) + ')' if t else '(khong doc duoc)'}")
+    return label, vis_rgb, "\n".join(lines)
 
 
 examples = [[str(p)] for p in sorted((PKG / "samples").glob("*"))
@@ -62,19 +73,18 @@ examples = [[str(p)] for p in sorted((PKG / "samples").glob("*"))
 with gr.Blocks(title="ALPR bien so VN - SR + YOLOv5 OCR") as demo:
     gr.Markdown(
         "# Demo ALPR bien so xe Viet Nam\n"
-        "**Luong:** anh -> YOLOv5 detect & crop -> **SR lam net** -> YOLOv5 doc ky tu")
+        "**Luong:** anh -> YOLOv5 detect & crop -> **SR lam net** -> YOLOv5 doc ky tu  \n"
+        "Ho tro anh co **nhieu bien so**.")
     with gr.Row():
         with gr.Column():
             inp = gr.Image(label="Anh dau vao", type="numpy")
             skip = gr.Checkbox(label="Anh da la crop bien san (bo qua detect)", value=False)
             btn = gr.Button("Doc bien so", variant="primary")
         with gr.Column():
-            out_text = gr.Label(label="Bien so")
-            with gr.Row():
-                out_crop = gr.Image(label="Crop goc (truoc SR)")
-                out_sr = gr.Image(label="Sau SR (lam net)")
-            out_note = gr.Textbox(label="Chi tiet", lines=2)
-    btn.click(run, inputs=[inp, skip], outputs=[out_text, out_crop, out_sr, out_note])
+            out_text = gr.Label(label="Ket qua")
+            out_img = gr.Image(label="Anh ket qua (khung + bien so)")
+            out_note = gr.Textbox(label="Danh sach bien", lines=4)
+    btn.click(run, inputs=[inp, skip], outputs=[out_text, out_img, out_note])
     if examples:
         gr.Examples(examples=examples, inputs=inp)
 
