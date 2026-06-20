@@ -39,6 +39,11 @@ Rồi mở trình duyệt vào http://127.0.0.1:7860
 - Nếu ảnh của bạn **đã là ảnh crop sát biển** (không phải ảnh chụp cả xe), hãy
   **tích ô "Ảnh đã là crop biển sẵn (bỏ qua detect)"** trước khi bấm đọc.
 
+> ⚠️ **Lưu ý quan trọng:** Nếu ảnh **chưa crop** (ảnh chụp cả xe / cả khung cảnh)
+> thì **ĐỪNG tích** ô crop. Tích nhầm ô này với ảnh chưa crop sẽ khiến hệ thống bỏ
+> qua bước phát hiện biển và **đọc sai / không đọc được**. Để mặc định (không tích)
+> cho mọi ảnh chụp thông thường.
+
 ## Cách khác: chạy bằng dòng lệnh (không cần web)
 Sau khi đã cài (chạy `run_demo` 1 lần), kích hoạt môi trường rồi:
 ```bash

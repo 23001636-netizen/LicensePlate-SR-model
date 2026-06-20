@@ -101,6 +101,10 @@ with gr.Blocks(title="ALPR bien so VN - SR + YOLOv5 OCR") as demo:
         with gr.Column():
             inp = gr.Image(label="Anh dau vao", type="numpy")
             skip = gr.Checkbox(label="Anh da la crop bien san (bo qua detect)", value=False)
+            gr.Markdown(
+                ":warning: **Anh chup ca xe / khung canh thi DUNG tich o tren.** "
+                "Chi tich khi anh da cat sat bien. Tich nham voi anh chua crop se "
+                "khien demo doc sai hoac khong doc duoc.")
             btn = gr.Button("Doc bien so", variant="primary")
         with gr.Column():
             out_text = gr.Label(label="Ket qua")
