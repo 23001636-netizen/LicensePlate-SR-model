@@ -1,0 +1,19 @@
+# Da kiem thu voi Python 3.11.
+# LUU Y: torch va torchvision duoc cai RIENG trong run_demo (ban CPU) de chay
+# duoc tren moi may. Neu may co GPU NVIDIA, xem huong dan GPU trong README.
+numpy==1.26.4
+ultralytics==8.4.71
+opencv-python>=4.8
+pandas>=1.5
+pillow>=10.0
+PyYAML>=6.0
+requests>=2.31
+scipy>=1.10
+tqdm>=4.65
+matplotlib>=3.7
+seaborn>=0.12
+psutil>=5.9
+thop>=0.1.1
+gitpython>=3.1.30
+packaging>=23.0
+gradio>=4.0

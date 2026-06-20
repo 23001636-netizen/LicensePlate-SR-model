@@ -1,0 +1,12 @@
+# Moi truong ao & cache
+.venv/
+__pycache__/
+*.pyc
+
+# Ket qua sinh ra khi chay
+outputs/*
+!outputs/.gitkeep
+
+# He dieu hanh
+.DS_Store
+Thumbs.db
